@@ -1,0 +1,22 @@
+---
+- name: Create Tenant on Cisco APIC
+  hosts: apic01
+  gather_facts: no
+  collections:
+    - cisco.aci
+
+  vars:
+    tenant_name: "Flowers"
+    tenant_description: "Production Tenant for Web Apps"
+
+  tasks:
+    - name: Ensure tenant exists
+      cisco.aci.aci_tenant:
+        host: "{{ ansible_host }}"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        validate_certs: no
+        tenant: "{{ tenant_name }}"
+        description: "{{ tenant_description }}"
+        state: present
+        delegate_to: localhost
