@@ -1,0 +1,119 @@
+---
+###############################################################################
+# This playbook executes CRUD Actions against the Selected Tenant VRF
+# The first set of tasks set facts including which Tenant to act upon in ACI
+# The second set of tasks performs the selected VRF action within the Tenant
+# and performs a vrf query against the selected Tenant to confirm action
+# EXECUTION:
+# ansible-playbook -i hosts aci_new_vrf.yml
+###############################################################################
+- name: ACI Tenant Selection and VRF CRUD Playbook
+  hosts: apic01
+  gather_facts: no
+
+
+  tasks:
+
+# Using set_facts rather than vars so that these variables are available across tasks
+# - set_fact:
+#     aci_user: admin
+#      aci_pwd: ciscopsdt
+#      aci_host: sandboxapicdc.cisco.com
+
+  - name: Query all tenants task
+    aci_tenant:
+      host: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_password }}"
+      validate_certs: no
+      timeout: 90
+      state: query
+    delegate_to: localhost
+    register: all_tenants
+
+  - set_fact:
+      tenantlist: "{{ all_tenants.current | map(attribute='fvTenant.attributes.name') | list }}"
+
+  - name: Tenants returned in Query ==>
+    debug:
+      var: tenantlist
+
+# Display a list of Tenants with an Index Value for selection
+  - name: Select Tenant for VRF Action
+    debug:
+      msg: "Tenant Index {{ index }} - {{ item }}"
+    loop: "{{ tenantlist }}"
+    loop_control:
+      index_var: index
+
+
+###############################################################################
+# This playbook executes CRUD Actions against the Selected Tenant VRF
+###############################################################################
+- name: ACI VRF CRUD
+  hosts: apic01
+  gather_facts: no
+
+  vars_prompt:
+
+    - name: "tenant_index"
+      prompt: "Enter Tenant Index (corresponding to Tenant)"
+      private: no
+
+    - name: "vrf_name"
+      prompt: "Enter VRF Name:"
+      private: no
+
+    - name: "vrf_state"
+      prompt: "Enter Tenant State (absent | present | query)"
+      default: "query"
+      private: no
+
+
+  tasks:
+
+  - name: Set Date
+    set_fact: curr_date="{{lookup('pipe','date \"+%Y-%m-%d %H:%M\"')}}"
+
+  - set_fact:
+      selected_tenant: "{{ tenantlist[tenant_index|int] }}"
+
+  - debug:
+      var: selected_tenant
+
+  - name: "Add, Delete, or Query Tenant {{ selected_tenant }}"
+    aci_vrf:
+      host: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_password }}"
+      validate_certs: no
+      vrf: "{{ vrf_name }}"
+      tenant: "{{ selected_tenant }}"
+      descr: "VRF {{ vrf_name }} in Tenant {{ selected_tenant }} Action {{ vrf_state}} on {{ curr_date }}"
+      policy_control_preference: enforced
+      policy_control_direction: ingress
+      state: "{{ vrf_state }}"
+    delegate_to: localhost
+    register: vrf_results
+
+  - name: "Query VRFS for Tenant {{ selected_tenant }}"
+    aci_vrf:
+      host: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_password }}"
+      validate_certs: no
+      tenant: "{{ selected_tenant }}"
+      state: query
+    delegate_to: localhost
+    register: all_tenant_vrfs
+
+  - debug:
+      var: all_tenant_vrfs
+      verbosity: 1
+
+  - set_fact:
+      vrflist: "{{ all_tenant_vrfs.current[0].fvTenant.children | map(attribute='fvCtx.attributes.name') | list }}"
+
+  - name: VRFs returned in Query ==>
+    debug:
+      var: vrflist
