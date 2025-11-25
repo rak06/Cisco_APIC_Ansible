@@ -1,0 +1,141 @@
+---
+- name: Create Tenant
+  hosts: apic01
+  gather_facts: no
+  collections:
+    - cisco.aci
+
+  vars:
+    tenant_name: "Alpha"
+    tenant_description: "Ansible Testing Tenant"
+    vrf_name: "Alpha_L2-VRF"
+    bridge_domain: "Alpha_L2-BD"
+
+
+  tasks:
+    - name: Ensure tenant exists
+      cisco.aci.aci_tenant:
+        host: "{{ ansible_host }}"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        validate_certs: no
+        tenant: "{{ item.tenant }}"
+        description: "{{ tenant_description }}"
+        state: present
+      loop:
+        - { tenant: "Alpha" }
+        - { tenant: "Bravo" }
+        - { tenant: "Charle" }
+      tags:
+        - tenant
+
+    - name: add a VRF to the tenant
+      cisco.aci.aci_vrf:
+        host: "{{ ansible_host }}"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        tenant: "{{ item.tenant }}"
+        vrf: "{{ item.vrf }}"
+        state: present
+      loop:
+        - { tenant: "Alpha", vrf: "A_L2_VRF" }
+        - { tenant: "Alpha", vrf: "A_L3_VRF" }
+        - { tenant: "Bravo", vrf: "B_L2_VRF" }
+        - { tenant: "Bravo", vrf: "B_L3_VRF" }
+        - { tenant: "Charle", vrf: "C_L2_VRF" }
+        - { tenant: "Charle", vrf: "C_L3_VRF" }
+      tags:
+        - vrf
+
+    - name: add a BD to the tenant
+      cisco.aci.aci_bd:
+        host: "{{ ansible_host }}"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        tenant: "{{ item.tenant }}"
+        vrf: "{{ item.vrf }}"
+        bd: "{{ item.bd }}"
+        l2_unknown_unicast: "{{ item.L2 }}"
+        enable_routing: "{{ item.L3 }}"
+        state: present
+      loop:
+        - { tenant: "Alpha", vrf: "A_L2_VRF", bd: "A_vlan_100_BD", L2: "flood", L3: "false" }
+        - { tenant: "Alpha", vrf: "A_L3_VRF", bd: "A_vlan_200_BD", L2: "flood", L3: "True" }
+        - { tenant: "Bravo", vrf: "B_L2_VRF", bd: "B_vlan_100_BD", L2: "flood", L3: "false" }
+        - { tenant: "Bravo", vrf: "B_L3_VRF", bd: "B_vlan_200_BD", L2: "flood", L3: "True" }
+        - { tenant: "Charle", vrf: "C_L2_VRF", bd: "C_vlan_100_BD", L2: "flood", L3: "false" }
+        - { tenant: "Charle", vrf: "C_L3_VRF", bd: "C_vlan_200_BD", L2: "flood", L3: "True" }
+      tags:
+        - bd
+    
+    - name: Update a subnets scope to private and shared
+      cisco.aci.aci_bd_subnet:
+        host: "{{ ansible_host }}"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        tenant: "{{ item.tenant }}"
+        bd: "{{ item.bd }}"
+        gateway: "{{ item.gw }}"
+        mask: "{{ item.mask }}"
+        scope: [public]
+        state: present
+      loop:
+        - { tenant: "Alpha", vrf: "A_L3_VRF", bd: "A_vlan_200_BD", gw: "10.10.10.1", mask: "24" }
+        - { tenant: "Bravo", vrf: "B_L3_VRF", bd: "B_vlan_200_BD", gw: "10.10.20.1", mask: "24" }
+        - { tenant: "Charle", vrf: "C_L3_VRF", bd: "C_vlan_200_BD", gw: "10.10.30.1", mask: "24" }
+      tags:
+        - subnets
+
+    - name: Add a new AP
+      cisco.aci.aci_ap:
+        host: "{{ ansible_host }}"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        tenant: "{{ item.tenant }}"
+        ap: "{{ item.ap }}"
+        state: present
+      loop:
+        - { tenant: "Alpha", ap: "App_AP" }
+        - { tenant: "Bravo", ap: "App_AP" }
+        - { tenant: "Charle", ap: "App_AP" }
+      tags:
+        - ap
+    - name: Add a new EPG
+      cisco.aci.aci_epg:
+        host: "{{ ansible_host }}"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        tenant: "{{ item.tenant }}"
+        ap: "{{ item.ap }}"
+        epg: "{{ item.epg }}"
+        bd: "{{ item.bd }}"
+        monitoring_policy: default
+        preferred_group: true
+        state: present
+      loop:
+        - { tenant: "Alpha", ap: "App_AP", epg: "A_vlan_100_EPG", bd: "A_vlan_100_BD",}
+        - { tenant: "Alpha", ap: "App_AP", epg: "A_vlan_200_EPG", bd: "A_vlan_200_BD"}
+        - { tenant: "Bravo", ap: "App_AP", epg: "B_vlan_100_EPG", bd: "B_vlan_100_BD"}
+        - { tenant: "Bravo", ap: "App_AP", epg: "B_vlan_200_EPG", bd: "B_vlan_200_BD"}
+        - { tenant: "Charle", ap: "App_AP", epg: "C_vlan_100_EPG", bd: "C_vlan_100_BD" }
+        - { tenant: "Charle", ap: "App_AP", epg: "C_vlan_200_EPG", bd: "C_vlan_200_BD"}
+      tags:
+        - epg
+    - name: Delete a new EPG
+      cisco.aci.aci_epg:
+        host: "{{ ansible_host }}"
+        username: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        tenant: "{{ item.tenant }}"
+        ap: App_AP
+        epg: web_epg
+        bd: prod_bd
+        monitoring_policy: default
+        preferred_group: true
+        state: absent
+      loop:
+        - { tenant: "Alpha", ap: "App_AP" }
+        - { tenant: "Bravo", ap: "App_AP" }
+        - { tenant: "Charle", ap: "App_AP" }
+      tags:
+        - N-epg

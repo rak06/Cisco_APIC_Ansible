@@ -1,0 +1,88 @@
+---
+- name: Create Tenant
+  hosts: apic01
+  gather_facts: no
+  collections:
+    - cisco.aci
+
+  tasks:
+    - name: Create a Leaf Access Port-AP_IPG
+      cisco.aci.aci_interface_policy_leaf_policy_group:
+       host: "{{ ansible_host }}"
+       username: "{{ ansible_user }}"
+       password: "{{ ansible_password }}"
+       lag_type: leaf
+       policy_group: Teat_AP_IPG
+       link_level_policy: system-link-level-1G-auto
+       cdp_policy: CDP-Enable
+       lldp_policy: LLDP_Enable
+       state: present
+       
+    - name: Create a Virtual Port Channel-VPC_IPG
+      cisco.aci.aci_interface_policy_leaf_policy_group:
+       host: "{{ ansible_host }}"
+       username: "{{ ansible_user }}"
+       password: "{{ ansible_password }}"
+       lag_type: node
+       policy_group: Teat_VPC_IPG
+       link_level_policy: system-link-level-1G-auto
+       cdp_policy: CDP-Enable
+       lldp_policy: LLDP_Enable
+       port_channel_policy: lacp_active
+       state: present
+           
+    - name: Associate an Interface Access Port Selector to an Interface Policy Leaf Profile with a Policy Group
+      cisco.aci.aci_access_port_to_interface_policy_leaf_profile:
+       host: "{{ ansible_host }}"
+       username: "{{ ansible_user }}"
+       password: "{{ ansible_password }}"
+       interface_profile: L102_Prof
+       access_port_selector: ETH1_30
+       port_blk: leafportblkname
+       from_port: 30
+       to_port: 30
+       policy_group: Teat_AP_IPG
+       state: present
+      tags:
+        - IP
+        
+        
+    - name: Associate an Interface Access Port Selector to an Interface Policy Leaf Profile with a Policy Group
+      cisco.aci.aci_access_port_to_interface_policy_leaf_profile:
+       host: "{{ ansible_host }}"
+       username: "{{ ansible_user }}"
+       password: "{{ ansible_password }}"
+       interface_profile: "{{ item.Int_Pro }}"
+       access_port_selector: "{{ item.AP_Sel }}"
+       port_blk: leafportblkname
+       from_port: "{{ item.Fr_p }}"
+       to_port: "{{ item.To_P }}"
+       policy_group: "{{ item.Pol_GrP }}"
+       state: present
+      loop:
+        - { Int_Pro: "L101_Prof", AP_Sel: "ETH1", Fr_p: "31", To_P: "31", Pol_GrP: "Teat_AP_IPG" }
+        - { Int_Pro: "L102_Prof", AP_Sel: "ETH1", Fr_p: "31", To_P: "31", Pol_GrP: "Teat_AP_IPG" }
+      tags:
+        - IPLP
+        
+    - name: Create and Bind Access Port Selector with VPC Policy Group
+      cisco.aci.aci_access_port_to_interface_policy_leaf_profile:
+       host: "{{ ansible_host }}"
+       username: "{{ ansible_user }}"
+       password: "{{ ansible_password }}"
+       interface_profile: "{{ item.Int_Pro }}"
+       access_port_selector: "{{ item.AP_Sel }}"
+       policy_group: "{{ item.Pol_GrP }}"
+       interface_type: vpc
+       port_blk: leafportblkname
+       from_port: "{{ item.Fr_p }}"
+       to_port: "{{ item.To_P }}"
+       state: present
+      loop:
+        - { Int_Pro: "L101_L102_Prof", AP_Sel: "ETH1_35", Fr_p: "35", To_P: "35", Pol_GrP: "Teat_VPC_IPG" }
+        - { Int_Pro: "L101_L102_Prof", AP_Sel: "ETH1_36", Fr_p: "36", To_P: "36", Pol_GrP: "Teat_VPC_IPG" }
+        - { Int_Pro: "L101_L102_Prof", AP_Sel: "ETH1_37", Fr_p: "37", To_P: "37", Pol_GrP: "Teat_VPC_IPG" }
+      tags:
+        - VPC
+       
+       
